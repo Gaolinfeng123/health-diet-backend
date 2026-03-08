@@ -43,12 +43,22 @@ public class AiService {
         User user = userMapper.selectById(userId);
         String history = getYesterdaySummary(userId);
 
-        // 极其精简的指令
-        String sysMsg = "你是一位毒舌但专业的营养师。请根据数据生成昨日评估。" +
-                "要求：严禁寒暄，字数<130字，严格按此格式：\n" +
-                "【昨日总结】：总热量与结构评价\n" +
-                "【核心问题】：指出1-2个痛点\n" +
-                "【今日建议】：3条极简对策";
+        // 根据是否是慢性病用户，切换不同的系统指令
+        boolean isChronicUser = user.getTarget() != null && user.getTarget() >= 2;
+        String sysMsg;
+        if (isChronicUser) {
+            sysMsg = "你是一位温柔且专业的慢性病营养师。请根据数据生成昨日评估。" +
+                    "要求：严禁寒暄，字数<150字，必须结合用户的慢性病目标给出针对性建议，严格按此格式：\n" +
+                    "【昨日总结】：总热量与结构评价\n" +
+                    "【病情关注】：结合慢性病目标指出饮食风险点\n" +
+                    "【今日建议】：3条针对慢性病的极简饮食对策";
+        } else {
+            sysMsg = "你是一位温柔且专业的营养师。请根据数据生成昨日评估。" +
+                    "要求：严禁寒暄，字数<130字，严格按此格式：\n" +
+                    "【昨日总结】：总热量与结构评价\n" +
+                    "【核心问题】：指出1-2个痛点\n" +
+                    "【今日建议】：3条极简对策";
+        }
 
         String userMsg = String.format("身高%.0f, 体重%.1f, 目标:%s。昨日记录：%s",
                 user.getHeight(), user.getWeight(), getTargetText(user.getTarget()), history);
@@ -72,11 +82,17 @@ public class AiService {
         String dailyReport = getOrGenerateDailyReport(userId);
         User user = userMapper.selectById(userId);
 
+        // 慢性病用户加入额外的限制提示，防止 AI 给出不适合的建议
+        boolean isChronicUser = user.getTarget() != null && user.getTarget() >= 2;
+        String chronicReminder = isChronicUser
+                ? "\n注意：该用户为慢性病患者（" + getTargetText(user.getTarget()) + "），回答时必须严格遵循对应的饮食禁忌，不得给出与病情相悖的建议。"
+                : "";
+
         String systemPrompt = String.format(
                 "你是营养师助手。用户信息：身高%.0f, 体重%.1f, 目标:%s。\n" +
                         "昨日评估报告：\n%s\n" +
-                        "请结合此报告简短回答用户提问。如果用户问的与健康无关，请礼貌拒绝。",
-                user.getHeight(), user.getWeight(), getTargetText(user.getTarget()), dailyReport
+                        "请结合此报告简短回答用户提问。如果用户问的与健康无关，请礼貌拒绝。%s",
+                user.getHeight(), user.getWeight(), getTargetText(user.getTarget()), dailyReport, chronicReminder
         );
 
         sendStreamRequest(systemPrompt, userMessage, emitter);
@@ -142,5 +158,16 @@ public class AiService {
     }
 
     private String escape(String s) { return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r"); }
-    private String getTargetText(Integer t) { return t == null ? "维持" : (t == -1 ? "减脂" : (t == 1 ? "增肌" : "维持")); }
+
+    private String getTargetText(Integer t) {
+        if (t == null) return "维持";
+        return switch (t) {
+            case -1 -> "减脂";
+            case  1 -> "增肌";
+            case  2 -> "糖尿病控糖（低升糖、控制精制碳水）";
+            case  3 -> "高血压低盐（每日钠摄入<2000mg，少加工食品）";
+            case  4 -> "高血脂低脂（低饱和脂肪、多膳食纤维）";
+            default -> "维持";
+        };
+    }
 }

@@ -29,9 +29,9 @@ public class User {
     @Max(value = 1, message = "性别只能是 0(女) 或 1(男)")
     private Integer gender;
 
-    // 重点：限制 target 只能是 -1, 0, 1
-    @Min(value = -1, message = "目标只能是 -1(减脂), 0(维持), 1(增肌)")
-    @Max(value = 1, message = "目标只能是 -1(减脂), 0(维持), 1(增肌)")
+    // 重点：限制 target 只能是 -1, 0, 1, 2, 3, 4
+    @Min(value = -1, message = "目标只能是 -1(减脂), 0(维持), 1(增肌), 2(糖尿病控糖), 3(高血压低盐), 4(高血脂低脂)")
+    @Max(value = 4, message = "目标只能是 -1(减脂), 0(维持), 1(增肌), 2(糖尿病控糖), 3(高血压低盐), 4(高血脂低脂)")
     private Integer target;
 
     @Min(value = 0, message = "角色只能是 0(普通) 或 1(管理员)")
