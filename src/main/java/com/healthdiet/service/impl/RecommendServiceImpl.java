@@ -183,11 +183,22 @@ public class RecommendServiceImpl extends ServiceImpl<RecommendMapper, Recommend
         RecommendVO.DailySummary ds = new RecommendVO.DailySummary();
         ds.setTotalCalories(targetCal);
 
-        double pRatio = goalType == -1 ? 0.35 : 0.25;
-        ds.setTotalMacros(new RecommendVO.Macros(
-                targetCal * pRatio / 4, targetCal * 0.25 / 9, targetCal * (1 - pRatio - 0.25) / 4
-        ));
-        ds.setPfcRatio(new RecommendVO.Macros(pRatio, 0.25, 1 - pRatio - 0.25));
+        double totalProtein = meals.stream().mapToDouble(m -> m.getMacros().getProtein()).sum();
+        double totalFat     = meals.stream().mapToDouble(m -> m.getMacros().getFat()).sum();
+        double totalCarbs   = meals.stream().mapToDouble(m -> m.getMacros().getCarbs()).sum();
+
+        ds.setTotalCalories(targetCal);
+        ds.setTotalMacros(new RecommendVO.Macros(totalProtein, totalFat, totalCarbs));
+
+        // pfcRatio 也从真实数字反推，而不是填预设比例
+        double totalCalFromMacros = totalProtein * 4 + totalFat * 9 + totalCarbs * 4;
+        if (totalCalFromMacros > 0) {
+            ds.setPfcRatio(new RecommendVO.Macros(
+                    totalProtein * 4 / totalCalFromMacros,
+                    totalFat     * 9 / totalCalFromMacros,
+                    totalCarbs   * 4 / totalCalFromMacros
+            ));
+        }
 
         // summaryText：历史摄入情况 + 慢性病目标重点，同时显示互不覆盖
         StringBuilder summaryText = new StringBuilder();
@@ -232,6 +243,10 @@ public class RecommendServiceImpl extends ServiceImpl<RecommendMapper, Recommend
     // 🥗 核心算法：基于真实食物库的配餐引擎
     // ========================================================================
     private RecommendVO.Meal composeRealMeal(String type, String title, int mealCal, int goal) {
+
+        // ---------------------------------------------------------------
+        // 分桶：从食物缓存中按营养特征归类
+        // ---------------------------------------------------------------
         List<Food> staples  = new ArrayList<>();
         List<Food> proteins = new ArrayList<>();
         List<Food> veggies  = new ArrayList<>();
@@ -249,41 +264,99 @@ public class RecommendServiceImpl extends ServiceImpl<RecommendMapper, Recommend
         }
 
         if (staples.isEmpty() || proteins.isEmpty()) {
-            return new RecommendVO.Meal(type, title, "数据库食物不足，请联系管理员添加", mealCal, new RecommendVO.Macros(0.0, 0.0, 0.0), "暂无建议");
+            return new RecommendVO.Meal(type, title, "数据库食物不足，请联系管理员添加",
+                    mealCal, new RecommendVO.Macros(0.0, 0.0, 0.0), "暂无建议");
         }
 
-        // 配餐比例：根据目标调整三大类食物占比
-        double stapleRatio = 0.4, proteinRatio = 0.4, veggieRatio = 0.2;
+        // ---------------------------------------------------------------
+        // 第一步：按供能比算出三大营养素的目标克数
+        // 供能比根据目标类型调整，与餐次无关
+        // ---------------------------------------------------------------
+        double pRatio = (goal == -1) ? 0.35 : 0.25;  // 蛋白质供能比（减脂时更高）
+        double fRatio = 0.25;                          // 脂肪供能比
+        double cRatio = 1.0 - pRatio - fRatio;         // 碳水供能比
+
+        double targetProteinG = mealCal * pRatio / 4.0;  // 蛋白质：每克产热4kcal
+        double targetFatG     = mealCal * fRatio / 9.0;  // 脂肪：每克产热9kcal
+        double targetCarbG    = mealCal * cRatio / 4.0;  // 碳水：每克产热4kcal
+
+        // ---------------------------------------------------------------
+        // 第二步：根据目标/餐次调整各桶承担的热量比例
+        // 注意：这里的比例决定"哪个桶负责满足哪种营养素目标的多少"
+        // ---------------------------------------------------------------
+        double stapleRatio  = 0.4;
+        double proteinRatio = 0.4;
+        double veggieRatio  = 0.2;
 
         if ("dinner".equals(type) && goal == -1) {
-            stapleRatio = 0.15; proteinRatio = 0.55; veggieRatio = 0.3;  // 减脂晚餐
+            stapleRatio = 0.15; proteinRatio = 0.55; veggieRatio = 0.30;
         } else if (goal == 2) {
-            stapleRatio = 0.2;  proteinRatio = 0.45; veggieRatio = 0.35; // 糖尿病：降碳水
+            stapleRatio = 0.20; proteinRatio = 0.45; veggieRatio = 0.35;
         } else if (goal == 3) {
-            stapleRatio = 0.3;  proteinRatio = 0.35; veggieRatio = 0.35; // 高血压：增蔬果
+            stapleRatio = 0.30; proteinRatio = 0.35; veggieRatio = 0.35;
         } else if (goal == 4) {
-            stapleRatio = 0.35; proteinRatio = 0.3;  veggieRatio = 0.35; // 高血脂：降脂肪
+            stapleRatio = 0.35; proteinRatio = 0.30; veggieRatio = 0.35;
         }
 
+        // ---------------------------------------------------------------
+        // 第三步：随机抽取食物
+        // ---------------------------------------------------------------
         Food stapleFood  = staples.get(random.nextInt(staples.size()));
         Food proteinFood = proteins.get(random.nextInt(proteins.size()));
         Food veggieFood  = veggies.isEmpty() ? null : veggies.get(random.nextInt(veggies.size()));
 
-        int stapleWeight  = (int) ((mealCal * stapleRatio)  / stapleFood.getCalories()  * 100);
-        int proteinWeight = (int) ((mealCal * proteinRatio) / proteinFood.getCalories() * 100);
-        int veggieWeight  = veggieFood == null ? 0 : (int) ((mealCal * veggieRatio) / veggieFood.getCalories() * 100);
+        // ---------------------------------------------------------------
+        // 第四步：按营养素含量反推克重
+        // 蛋白质桶：用食物蛋白质含量满足蛋白质目标
+        // 主食桶：用食物碳水含量满足碳水目标
+        // 蔬菜：固定100g，补充微量营养素，不主导宏量
+        // ---------------------------------------------------------------
+        double proteinFoodProteinPer100 = proteinFood.getProtein(); // 每100g含蛋白质克数
+        double stapleFoodCarbPer100     = stapleFood.getCarb();     // 每100g含碳水克数
 
-        stapleWeight  = (stapleWeight  / 50 + 1) * 50;
-        proteinWeight = (proteinWeight / 10 + 1) * 10;
+        // 防止除以零（食物数据库录入异常时的保护）
+        if (proteinFoodProteinPer100 <= 0) proteinFoodProteinPer100 = 1.0;
+        if (stapleFoodCarbPer100     <= 0) stapleFoodCarbPer100     = 1.0;
 
+        int proteinWeight = (int) (targetProteinG * proteinRatio / (proteinFoodProteinPer100 / 100.0));
+        int stapleWeight  = (int) (targetCarbG    * stapleRatio  / (stapleFoodCarbPer100     / 100.0));
+        int veggieWeight  = 100; // 蔬菜固定100g
+
+        // 取整到合理精度，方便用户理解
+        proteinWeight = Math.max(10,  (int) Math.round(proteinWeight / 10.0)  * 10);
+        stapleWeight  = Math.max(50,  (int) Math.round(stapleWeight  / 50.0)  * 50);
+
+        // ---------------------------------------------------------------
+        // 第五步：从克重反算真实宏量，这是最终展示给用户的数字
+        // ---------------------------------------------------------------
+        double realProtein = proteinFood.getProtein() * proteinWeight / 100.0
+                + stapleFood.getProtein()  * stapleWeight  / 100.0;
+        double realFat     = proteinFood.getFat()     * proteinWeight / 100.0
+                + stapleFood.getFat()      * stapleWeight  / 100.0;
+        double realCarb    = proteinFood.getCarb()    * proteinWeight / 100.0
+                + stapleFood.getCarb()     * stapleWeight  / 100.0;
+
+        if (veggieFood != null) {
+            realProtein += veggieFood.getProtein() * veggieWeight / 100.0;
+            realFat     += veggieFood.getFat()     * veggieWeight / 100.0;
+            realCarb    += veggieFood.getCarb()    * veggieWeight / 100.0;
+        }
+
+        RecommendVO.Macros macros = new RecommendVO.Macros(realProtein, realFat, realCarb);
+
+        // ---------------------------------------------------------------
+        // 拼装菜单文字
+        // ---------------------------------------------------------------
         StringBuilder menu = new StringBuilder();
         menu.append(stapleFood.getName()).append(stapleWeight).append("g");
         menu.append(" + ").append(proteinFood.getName()).append(proteinWeight).append("g");
-        if (veggieFood != null && veggieWeight > 0) {
-            menu.append(" + ").append(veggieFood.getName()).append("适量");
+        if (veggieFood != null) {
+            menu.append(" + ").append(veggieFood.getName()).append(veggieWeight).append("g");
         }
 
-        // 单餐建议：慢性病用户加专属提示
+        // ---------------------------------------------------------------
+        // 单餐建议文字（与原逻辑保持一致）
+        // ---------------------------------------------------------------
         String advice;
         if ("breakfast".equals(type)) {
             advice = "早餐是一天代谢的开关，蛋白质不能少。";
@@ -304,24 +377,35 @@ public class RecommendServiceImpl extends ServiceImpl<RecommendMapper, Recommend
             };
         }
 
-        RecommendVO.Macros macros = new RecommendVO.Macros(
-                mealCal * 0.25 / 4, mealCal * 0.25 / 9, mealCal * 0.5 / 4
-        );
-
         return new RecommendVO.Meal(type, title, menu.toString(), mealCal, macros, advice);
     }
 
     // --- 基础计算方法 ---
     private double analyzeHistoryIntake(Long userId, LocalDate start, LocalDate end) {
+        // 第1次查询：拿到这段时间的所有饮食记录
         QueryWrapper<DietRecord> query = new QueryWrapper<>();
         query.eq("user_id", userId).between("date", start, end);
         List<DietRecord> records = dietRecordMapper.selectList(query);
+
         if (records.isEmpty()) return 0;
+
+        // 收集所有涉及的 foodId（去重，避免重复查同一个食物）
+        Set<Long> foodIds = records.stream()
+                .map(DietRecord::getFoodId)
+                .collect(Collectors.toSet());
+
+        // 第2次查询：一次 IN 查回所有食物，结果装入 Map 方便查找
+        Map<Long, Food> foodMap = foodMapper.selectBatchIds(foodIds)
+                .stream()
+                .collect(Collectors.toMap(Food::getId, f -> f));
+
+        // 循环内只做本地 Map 查找，不再碰数据库
         double total = 0;
         for (DietRecord r : records) {
-            Food f = foodMapper.selectById(r.getFoodId());
+            Food f = foodMap.get(r.getFoodId());
             if (f != null) total += f.getCalories() * r.getQuantity();
         }
+
         return total / 7.0;
     }
 

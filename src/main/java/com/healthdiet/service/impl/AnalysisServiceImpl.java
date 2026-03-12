@@ -15,6 +15,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class AnalysisServiceImpl implements IAnalysisService {
@@ -63,8 +66,16 @@ public class AnalysisServiceImpl implements IAnalysisService {
         query.eq("user_id", userId).eq("date", LocalDate.parse(date));
         List<DietRecord> records = dietRecordMapper.selectList(query);
 
+        Set<Long> foodIds = records.stream()
+                .map(DietRecord::getFoodId)
+                .collect(Collectors.toSet());
+
+        Map<Long, Food> foodMap = foodMapper.selectBatchIds(foodIds)
+                .stream()
+                .collect(Collectors.toMap(Food::getId, f -> f));
+
         for (DietRecord record : records) {
-            Food food = foodMapper.selectById(record.getFoodId());
+            Food food = foodMap.get(record.getFoodId()); // 替换原来的 selectById
             if (food != null) {
                 double qty = record.getQuantity(); // 份数
                 double cal = food.getCalories() * qty;
