@@ -1,18 +1,55 @@
 package com.healthdiet.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
 @Data
-@TableName("foods") // 告诉代码，这个类对应数据库的 "foods" 表
+@TableName("foods")
 public class Food {
-    @TableId(type = IdType.AUTO) // 告诉代码，id 是自增的主键
+
+    @TableId(type = IdType.AUTO)
     private Long id;
+
     private String name;
-    private Double calories; // 热量
-    private Double protein;  // 蛋白质
-    private Double fat;      // 脂肪
-    private Double carb;     // 碳水
+
+    /**
+     * 统一口径：每100g
+     */
+    private Double calories;
+    private Double protein;
+    private Double fat;
+    private Double carb;
+
+    @TableField("food_category")
+    private String foodCategory;
+
+    @TableField("gi_level")
+    private String giLevel;
+
+    @TableField("sodium_mg")
+    private BigDecimal sodiumMg;
+
+    @TableField("saturated_fat")
+    private BigDecimal saturatedFat;
+
+    private BigDecimal fiber;
+    private BigDecimal sugar;
+
+    @TableField("breakfast_friendly")
+    private Integer breakfastFriendly;
+
+    @TableField("dinner_friendly")
+    private Integer dinnerFriendly;
+
+    @TableField("created_at")
+    private LocalDateTime createdAt;
+
+    @TableField("updated_at")
+    private LocalDateTime updatedAt;
 }
