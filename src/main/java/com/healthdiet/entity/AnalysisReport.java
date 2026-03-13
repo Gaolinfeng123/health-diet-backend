@@ -4,22 +4,74 @@ import lombok.Data;
 
 @Data
 public class AnalysisReport {
-    // --- 1. 热量概览 ---
-    private Double totalCalories;     // 实际摄入总热量
-    private Double recommendCalories; // 推荐摄入量
-    private Double diff;              // 热量差值
 
-    // --- 2. 三大营养素 (核心升级) ---
-    private Double totalProtein;      // 总蛋白质 (克)
-    private Double totalFat;          // 总脂肪 (克)
-    private Double totalCarb;         // 总碳水 (克)
+    /**
+     * 分析对应日期
+     */
+    private String analysisDate;
 
-    // --- 3. 三餐热量分布 (核心升级) ---
-    private Double breakfastCal;      // 早餐摄入热量
-    private Double lunchCal;          // 午餐摄入热量
-    private Double dinnerCal;         // 晚餐摄入热量
-    private Double snackCal;          // 加餐摄入热量
+    /**
+     * 用户当前BMI和状态（用于页面展示）
+     */
+    private Double bmi;
+    private String status;
 
-    // --- 4. 智能建议 ---
-    private String advice;            // 综合建议
+    /**
+     * 实际总热量、目标总热量、差值
+     */
+    private Double totalCalories;
+    private Double recommendCalories;
+    private Double diff;
+
+    /**
+     * 实际宏量营养素（g）
+     */
+    private Double totalProtein;
+    private Double totalFat;
+    private Double totalCarb;
+
+    /**
+     * 目标宏量营养素（g）
+     */
+    private Double targetProtein;
+    private Double targetFat;
+    private Double targetCarb;
+
+    /**
+     * 实际PFC占比
+     */
+    private MacrosRatio actualPfcRatio;
+
+    /**
+     * 目标PFC占比
+     */
+    private MacrosRatio targetPfcRatio;
+
+    /**
+     * 三餐/加餐热量分布
+     */
+    private Double breakfastCal;
+    private Double lunchCal;
+    private Double dinnerCal;
+    private Double snackCal;
+
+    /**
+     * 分析建议
+     */
+    private String advice;
+
+    @Data
+    public static class MacrosRatio {
+        private Double protein;
+        private Double fat;
+        private Double carbs;
+
+        public MacrosRatio() {}
+
+        public MacrosRatio(Double protein, Double fat, Double carbs) {
+            this.protein = protein;
+            this.fat = fat;
+            this.carbs = carbs;
+        }
+    }
 }

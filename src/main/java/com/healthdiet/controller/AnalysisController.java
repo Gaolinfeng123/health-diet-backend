@@ -47,4 +47,10 @@ public class AnalysisController {
             return Result.error("分析失败：" + e.getMessage());
         }
     }
+
+    @GetMapping("/trend")
+    public Result trend(@RequestParam Long userId,
+                        @RequestParam(defaultValue = "7") Integer days) {
+        return Result.success(analysisService.getCalorieTrend(userId, days));
+    }
 }
