@@ -2,6 +2,8 @@ package com.healthdiet.entity;
 
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 public class AnalysisReport {
 
@@ -15,6 +17,8 @@ public class AnalysisReport {
      */
     private Double bmi;
     private String status;
+    private Double activityFactor;
+    private Double tdee;
 
     /**
      * 实际总热量、目标总热量、差值
@@ -59,6 +63,14 @@ public class AnalysisReport {
      * 分析建议
      */
     private String advice;
+    private String reportTitle;
+    private String overview;
+    private List<String> highlights;
+    private EnergyAssessment energyAssessment;
+    private List<NutrientAssessment> nutrientAssessments;
+    private List<MealAssessment> mealAssessments;
+    private List<String> suggestions;
+    private List<String> quickQuestions;
 
     @Data
     public static class MacrosRatio {
@@ -73,5 +85,34 @@ public class AnalysisReport {
             this.fat = fat;
             this.carbs = carbs;
         }
+    }
+    @Data
+    public static class EnergyAssessment {
+        private Double actual;
+        private Double target;
+        private Double diff;
+        private String status;
+        private String comment;
+    }
+
+    @Data
+    public static class NutrientAssessment {
+        private String nutrient;
+        private Double actual;
+        private Double target;
+        private Double diff;
+        private String status;
+        private String comment;
+    }
+
+    @Data
+    public static class MealAssessment {
+        private String type;
+        private String title;
+        private Double calories;
+        private Double targetCalories;
+        private Double share;
+        private String status;
+        private String comment;
     }
 }

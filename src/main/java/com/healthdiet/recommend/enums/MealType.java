@@ -3,7 +3,8 @@ package com.healthdiet.recommend.enums;
 public enum MealType {
     BREAKFAST("breakfast", "早餐"),
     LUNCH("lunch", "午餐"),
-    DINNER("dinner", "晚餐");
+    DINNER("dinner", "晚餐"),
+    SNACK("snack", "加餐");
 
     private final String code;
     private final String title;

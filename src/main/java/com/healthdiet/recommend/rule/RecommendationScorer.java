@@ -53,14 +53,13 @@ public class RecommendationScorer {
                 + decimalNutrient(veggie.getSugar(), veggieWeight);
 
         double score = 0.0;
+        String stapleGroup = FoodRuleHelper.stapleGroup(staple);
 
-        // 基础误差
         score += Math.abs(calories - target.getMealCalories()) * 1.5;
         score += Math.abs(proteinG - target.getProteinG()) * 3.5;
         score += Math.abs(fatG - target.getFatG()) * 2.3;
         score += Math.abs(carbG - target.getCarbG()) * 3.2;
 
-        // 通用现实性约束
         if (mealType == MealType.DINNER && calories > target.getMealCalories() + 80) {
             score += 40;
         }
@@ -74,7 +73,6 @@ public class RecommendationScorer {
             score += (stapleWeight - 180) * 0.5;
         }
 
-        // 多样性惩罚
         if (usedFoodIds.contains(staple.getId())) {
             score += 90;
         }
@@ -85,7 +83,27 @@ public class RecommendationScorer {
             score += 60;
         }
 
-        // 根茎/淀粉蔬菜惩罚
+        if (mealType != MealType.BREAKFAST && FoodRuleHelper.isRestrictedMainMealStaple(staple)) {
+            score += mealType == MealType.DINNER ? 120 : 90;
+            if ("bakery".equals(stapleGroup)) {
+                score += 70;
+            }
+            if ("high".equalsIgnoreCase(FoodRuleHelper.nullToDefault(staple.getGiLevel(), "medium"))) {
+                score += 35;
+            }
+            if (FoodRuleHelper.decimalValue(staple.getSodiumMg()) >= 300) {
+                score += 35;
+            }
+        }
+        if (mealType == MealType.BREAKFAST && "bakery".equals(stapleGroup)) {
+            score += 18;
+        }
+        if (profile.getGoalType() == GoalType.GAIN_MUSCLE && mealType != MealType.BREAKFAST) {
+            if ("rice".equals(stapleGroup) || "potato".equals(stapleGroup) || "corn".equals(stapleGroup) || "noodle".equals(stapleGroup)) {
+                score -= 12;
+            }
+        }
+
         VeggieKind veggieKind = FoodRuleHelper.getVeggieKind(veggie);
         if (veggieKind == VeggieKind.STARCHY) {
             score += veggieWeight * 0.18;
@@ -97,7 +115,6 @@ public class RecommendationScorer {
             }
         }
 
-        // 早餐风格
         if (mealType == MealType.BREAKFAST) {
             if (FoodRuleHelper.isGoodBreakfastProtein(protein)) {
                 score -= 26;
@@ -116,7 +133,6 @@ public class RecommendationScorer {
             }
         }
 
-        // 目标差异化
         switch (profile.getGoalType()) {
             case LOSE_FAT -> score += scoreLoseFat(mealType, calories, proteinG, fiber, stapleWeight, target);
             case GAIN_MUSCLE -> score += scoreGainMuscle(calories, proteinG, stapleWeight, target);
@@ -209,8 +225,8 @@ public class RecommendationScorer {
             score += 25;
         }
 
-        String name = FoodRuleHelper.safeName(protein);
-        if (name.contains("鳕鱼") || name.contains("虾仁") || name.contains("豆腐")
+        String name = FoodRuleHelper.safeName(protein).toLowerCase();
+        if (name.contains("鳕鱼") || name.contains("虾") || name.contains("豆腐")
                 || name.contains("鸡胸") || name.contains("火鸡胸")) {
             score -= 8;
         }

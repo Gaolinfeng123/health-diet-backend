@@ -4,6 +4,7 @@ import com.healthdiet.common.Result;
 import com.healthdiet.entity.dto.ChatRequest;
 import com.healthdiet.service.AiService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -22,7 +23,7 @@ public class ChatController {
     }
 
     // 2. 提问调用：基于报告上下文进行聊天
-    @PostMapping("/stream")
+    @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter chat(@RequestBody ChatRequest chatRequest, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
         return aiService.streamChat(userId, chatRequest.getMessage());

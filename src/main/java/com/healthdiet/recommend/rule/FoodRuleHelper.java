@@ -5,28 +5,55 @@ import com.healthdiet.recommend.enums.GoalType;
 import com.healthdiet.recommend.enums.MealType;
 import com.healthdiet.recommend.enums.VeggieKind;
 
+import java.math.BigDecimal;
+import java.util.Locale;
+
 public class FoodRuleHelper {
 
-    private FoodRuleHelper() {}
+    private FoodRuleHelper() {
+    }
 
     public static String safeName(Food food) {
         return food == null || food.getName() == null ? "" : food.getName();
     }
 
     public static String normalizeCategory(Food food) {
-        String category = food.getFoodCategory() == null ? "" : food.getFoodCategory().trim().toLowerCase();
+        String category = normalizeRawCategory(food == null ? null : food.getFoodCategory());
         if (!category.isEmpty()) {
             return category;
         }
 
-        String name = safeName(food);
-        if (safe(food.getProtein()) > 10 || name.contains("肉") || name.contains("蛋") || name.contains("鱼") || name.contains("豆腐")) {
+        double protein = safe(food == null ? null : food.getProtein());
+        double carb = safe(food == null ? null : food.getCarb());
+        double calories = safe(food == null ? null : food.getCalories());
+        String name = safeName(food).toLowerCase(Locale.ROOT);
+
+        if (containsAny(name, "milk", "yogurt", "cheese", "soy milk", "牛奶", "酸奶", "奶酪", "豆浆")) {
+            return "dairy";
+        }
+        if (containsAny(name,
+                "chicken", "beef", "pork", "fish", "shrimp", "egg", "tofu", "bean",
+                "鸡", "牛肉", "猪肉", "鱼", "虾", "蛋", "豆腐", "豆")) {
             return "protein";
         }
-        if (safe(food.getCalories()) < 60 && safe(food.getCarb()) < 15) {
+        if (containsAny(name,
+                "rice", "noodle", "pasta", "oat", "bread", "bagel", "cracker", "corn", "potato", "yam", "quinoa",
+                "米饭", "面", "意面", "燕麦", "面包", "贝果", "饼干", "玉米", "土豆", "红薯", "紫薯", "山药", "藜麦", "南瓜", "小米粥", "玉米粥")) {
+            return "staple";
+        }
+        if (containsAny(name,
+                "broccoli", "cucumber", "lettuce", "tomato", "spinach", "cabbage", "pepper", "mushroom", "okra",
+                "西蓝花", "黄瓜", "生菜", "西红柿", "番茄", "菠菜", "白菜", "娃娃菜", "卷心菜", "青椒", "彩椒", "蘑菇", "香菇", "秋葵", "木耳", "海带")) {
             return "vegetable";
         }
-        if (safe(food.getCarb()) > 15 || name.contains("饭") || name.contains("面") || name.contains("粥")) {
+
+        if (protein >= 10) {
+            return "protein";
+        }
+        if (calories <= 70 && carb <= 15) {
+            return "vegetable";
+        }
+        if (carb >= 15) {
             return "staple";
         }
         return "mixed";
@@ -43,95 +70,70 @@ public class FoodRuleHelper {
     }
 
     public static boolean shouldExclude(Food food, GoalType goalType) {
-        String name = safeName(food);
         String category = normalizeCategory(food);
-
-        if ("mixed".equals(category) || "fruit".equals(category) || "nut".equals(category)) {
+        if ("mixed".equals(category)) {
             return true;
         }
 
-        if (name.contains("可乐")
-                || name.contains("奶茶")
-                || name.contains("巧克力")
-                || name.contains("汉堡")
-                || name.contains("薯片")
-                || name.contains("炸薯条")
-                || name.contains("披萨")
-                || name.contains("炸鸡")
-                || name.contains("啤酒")
-                || name.contains("苹果汁")
-                || name.contains("橙汁")
-                || name.contains("白面包")
-                || name.contains("苏打饼干")) {
+        String name = safeName(food).toLowerCase(Locale.ROOT);
+        if (containsAny(name,
+                "cola", "soda", "milk tea", "burger", "chips", "fries", "pizza", "fried chicken", "beer",
+                "可乐", "汽水", "奶茶", "汉堡", "薯片", "炸薯条", "披萨", "炸鸡", "啤酒")) {
             return true;
         }
 
-        if (goalType == GoalType.DIABETES_CONTROL
-                && "high".equalsIgnoreCase(nullToDefault(food.getGiLevel(), "medium"))
-                && "staple".equals(category)) {
-            return true;
-        }
-
-        return false;
+        return goalType == GoalType.DIABETES_CONTROL
+                && "staple".equals(category)
+                && "high".equalsIgnoreCase(nullToDefault(food.getGiLevel(), "medium"));
     }
 
     public static boolean isGoodBreakfastProtein(Food food) {
-        String name = safeName(food);
-        return name.contains("鸡蛋")
-                || name.contains("鸡蛋清")
-                || name.contains("牛奶")
-                || name.contains("酸奶")
-                || name.contains("豆浆")
-                || name.contains("豆腐");
+        String category = normalizeCategory(food);
+        String name = safeName(food).toLowerCase(Locale.ROOT);
+        if ("dairy".equals(category)) {
+            return true;
+        }
+        return containsAny(name, "egg", "milk", "yogurt", "tofu", "soy", "鸡蛋", "牛奶", "酸奶", "豆腐", "豆浆", "蛋清");
     }
 
     public static boolean isHeavyBreakfastProtein(Food food) {
-        String name = safeName(food);
-        return name.contains("鸡胸")
-                || name.contains("猪肉")
-                || name.contains("牛肉")
-                || name.contains("三文鱼")
-                || name.contains("沙丁鱼")
-                || name.contains("鳕鱼")
-                || name.contains("虾仁")
-                || name.contains("金枪鱼")
-                || name.contains("鸡腿")
-                || name.contains("鸭胸");
+        String category = normalizeCategory(food);
+        String name = safeName(food).toLowerCase(Locale.ROOT);
+        if ("protein".equals(category) && safe(food.getCalories()) >= 180 && proteinDensity(food) >= 12) {
+            return true;
+        }
+        return containsAny(name, "beef", "pork", "salmon", "tuna", "shrimp", "牛肉", "猪肉", "三文鱼", "金枪鱼", "虾");
     }
 
     public static boolean isNotIdealForHypertension(Food food) {
-        String name = safeName(food);
-        return name.contains("猪肉")
-                || name.contains("牛肉丸")
-                || name.contains("鱼豆腐")
-                || name.contains("沙丁鱼");
+        if (decimalValue(food.getSodiumMg()) >= 350) {
+            return true;
+        }
+        String name = safeName(food).toLowerCase(Locale.ROOT);
+        return containsAny(name, "bacon", "sausage", "ham", "培根", "香肠", "火腿");
     }
 
     public static VeggieKind getVeggieKind(Food food) {
-        String name = safeName(food);
-        if (name.contains("莲藕")
-                || name.contains("南瓜")
-                || name.contains("山药")
-                || name.contains("土豆")
-                || name.contains("紫薯")) {
+        if ("vegetable".equals(normalizeCategory(food))) {
+            if (safe(food.getCarb()) >= 12 || safe(food.getCalories()) >= 70) {
+                return VeggieKind.STARCHY;
+            }
+            return VeggieKind.LEAFY;
+        }
+
+        String name = safeName(food).toLowerCase(Locale.ROOT);
+        if (containsAny(name, "potato", "pumpkin", "yam", "corn", "lotus", "sweet potato",
+                "土豆", "南瓜", "山药", "玉米", "莲藕", "红薯", "紫薯")) {
             return VeggieKind.STARCHY;
         }
         return VeggieKind.LEAFY;
     }
 
     public static boolean isLightLeafyVeg(Food food) {
-        String name = safeName(food);
-        return name.contains("西蓝花")
-                || name.contains("生菜")
-                || name.contains("黄瓜")
-                || name.contains("西红柿")
-                || name.contains("菠菜")
-                || name.contains("白菜")
-                || name.contains("油麦菜")
-                || name.contains("卷心菜")
-                || name.contains("花椰菜")
-                || name.contains("苦瓜")
-                || name.contains("秋葵");
+        return "vegetable".equals(normalizeCategory(food))
+                && getVeggieKind(food) == VeggieKind.LEAFY
+                && safe(food.getCalories()) <= 45
+                && fiberValue(food) >= 1.0;
     }
 
     public static boolean isReasonableCombination(
@@ -160,51 +162,65 @@ public class FoodRuleHelper {
     }
 
     public static int getStapleMaxWeight(Food food, MealType mealType, GoalRuleProfile profile) {
-        String name = safeName(food);
-
-        if (name.contains("燕麦")) return 80;
-        if (name.contains("面包")) return 100;
-        if (name.contains("馒头")) return 100;
-        if (name.contains("玉米")) return 150;
-        if (name.contains("红薯")) return 180;
-        if (name.contains("藜麦")) return 175;
-        if (name.contains("粥")) return 200;
-
-        if (mealType == MealType.DINNER && profile.getGoalType() == GoalType.LOSE_FAT) return 100;
-        if (mealType == MealType.DINNER && profile.getGoalType() == GoalType.DIABETES_CONTROL) return 125;
-        if (profile.getGoalType() == GoalType.DIABETES_CONTROL) return 160;
+        String group = stapleGroup(food);
+        if (mealType == MealType.BREAKFAST && "oat_wheat".equals(group)) {
+            return 100;
+        }
+        if ("bakery".equals(group)) {
+            return mealType == MealType.BREAKFAST ? 80 : 50;
+        }
+        if (mealType == MealType.DINNER && profile.getGoalType() == GoalType.LOSE_FAT) {
+            return 100;
+        }
+        if (mealType == MealType.DINNER && profile.getGoalType() == GoalType.DIABETES_CONTROL) {
+            return 125;
+        }
+        if (profile.getGoalType() == GoalType.DIABETES_CONTROL) {
+            return "low".equalsIgnoreCase(nullToDefault(food.getGiLevel(), "medium")) ? 180 : 160;
+        }
+        if (fiberValue(food) >= 6) {
+            return 200;
+        }
+        if (safe(food.getCalories()) >= 180) {
+            return 150;
+        }
         return 180;
     }
 
     public static int getProteinMaxWeight(Food food, MealType mealType, GoalRuleProfile profile) {
-        String name = safeName(food);
-
-        if (name.contains("鸡蛋")) return 120;
-        if (name.contains("牛奶")) return 300;
-        if (name.contains("酸奶")) return 250;
-        if (name.contains("豆浆")) return 300;
-        if (name.contains("豆腐")) return 220;
-        if (name.contains("三文鱼")) return 160;
-        if (name.contains("沙丁鱼")) return 150;
-        if (name.contains("毛豆")) return mealType == MealType.BREAKFAST ? 120 : 180;
-        if (mealType == MealType.BREAKFAST && isHeavyBreakfastProtein(food)) return 120;
-        if (profile.getGoalType() == GoalType.GAIN_MUSCLE) return 200;
+        String category = normalizeCategory(food);
+        if ("dairy".equals(category)) {
+            return 300;
+        }
+        if (isGoodBreakfastProtein(food) && mealType == MealType.BREAKFAST) {
+            return 140;
+        }
+        if (isHeavyBreakfastProtein(food) && mealType == MealType.BREAKFAST) {
+            return 120;
+        }
+        if (profile.getGoalType() == GoalType.GAIN_MUSCLE && proteinDensity(food) >= 12) {
+            return 200;
+        }
+        if (safe(food.getCalories()) >= 220) {
+            return 150;
+        }
         return 180;
     }
 
     public static int getVeggieMaxWeight(Food food, MealType mealType, GoalRuleProfile profile) {
         VeggieKind kind = getVeggieKind(food);
-        String name = safeName(food);
-
         if (kind == VeggieKind.STARCHY) {
-            if (mealType == MealType.DINNER) return 150;
-            if (profile.getGoalType() == GoalType.LOSE_FAT || profile.getGoalType() == GoalType.DIABETES_CONTROL) return 150;
+            if (mealType == MealType.DINNER) {
+                return 150;
+            }
+            if (profile.getGoalType() == GoalType.LOSE_FAT || profile.getGoalType() == GoalType.DIABETES_CONTROL) {
+                return 150;
+            }
             return 200;
         }
-
-        if (name.contains("木耳")) return 200;
-        if (name.contains("番茄") || name.contains("西红柿")) return 200;
-        if (name.contains("黄瓜")) return 200;
+        if (fiberValue(food) >= 2.5) {
+            return 220;
+        }
         return 250;
     }
 
@@ -213,18 +229,160 @@ public class FoodRuleHelper {
     }
 
     public static double fiberValue(Food food) {
-        return food.getFiber() == null ? 0.0 : food.getFiber().doubleValue();
+        return decimalValue(food == null ? null : food.getFiber());
+    }
+
+    public static boolean isBreakfastStyleStaple(Food food) {
+        if (!"staple".equals(normalizeCategory(food))) {
+            return false;
+        }
+        String group = stapleGroup(food);
+        return "oat_wheat".equals(group) || "bakery".equals(group);
+    }
+
+    public static boolean isRestrictedMainMealStaple(Food food) {
+        if (!"staple".equals(normalizeCategory(food))) {
+            return false;
+        }
+
+        String group = stapleGroup(food);
+        String gi = nullToDefault(food.getGiLevel(), "medium");
+        double sodium = decimalValue(food.getSodiumMg());
+        double fiber = fiberValue(food);
+        String name = safeName(food).toLowerCase(Locale.ROOT);
+
+        if ("oat_wheat".equals(group) || "bakery".equals(group)) {
+            return true;
+        }
+        if ("high".equalsIgnoreCase(gi) && sodium >= 300) {
+            return true;
+        }
+        return fiber < 3 && containsAny(name,
+                "bagel", "cracker", "bread", "biscuit",
+                "贝果", "饼干", "面包", "苏打");
+    }
+
+    public static String proteinSourceGroup(Food food) {
+        String category = normalizeCategory(food);
+        if ("dairy".equals(category)) {
+            return "dairy";
+        }
+
+        String name = safeName(food).toLowerCase(Locale.ROOT);
+        if (containsAny(name, "egg", "鸡蛋", "蛋清")) {
+            return "egg";
+        }
+        if (containsAny(name, "tofu", "soy", "edamame", "chickpea", "lentil", "black bean", "豆腐", "豆", "毛豆", "鹰嘴豆", "扁豆", "黑豆")) {
+            return "soy";
+        }
+        if (containsAny(name, "fish", "salmon", "shrimp", "tuna", "cod", "sardine", "鱼", "虾", "三文鱼", "金枪鱼", "鳕鱼", "沙丁鱼")) {
+            return "seafood";
+        }
+        if (containsAny(name, "beef", "牛肉")) {
+            return "beef";
+        }
+        if (containsAny(name, "pork", "猪肉")) {
+            return "pork";
+        }
+        if (containsAny(name, "chicken", "turkey", "鸡", "火鸡")) {
+            return "poultry";
+        }
+
+        if ("protein".equals(category)) {
+            if (decimalValue(food.getSaturatedFat()) <= 2 && decimalValue(food.getSodiumMg()) <= 120) {
+                return "lean_protein";
+            }
+            return "protein";
+        }
+        return category;
+    }
+
+    public static String stapleGroup(Food food) {
+        if (!"staple".equals(normalizeCategory(food))) {
+            return normalizeCategory(food);
+        }
+
+        String name = safeName(food).toLowerCase(Locale.ROOT);
+        if (containsAny(name, "rice", "porridge", "congee", "米饭", "糙米", "小米粥", "玉米粥")) {
+            return "rice";
+        }
+        if (containsAny(name, "noodle", "pasta", "意面", "面条", "荞麦面", "挂面")) {
+            return "noodle";
+        }
+        if (containsAny(name, "bread", "bagel", "cracker", "biscuit", "toast", "面包", "贝果", "饼干", "苏打")) {
+            return "bakery";
+        }
+        if (containsAny(name, "oat", "wheat", "燕麦", "全麦")) {
+            return "oat_wheat";
+        }
+        if (containsAny(name, "potato", "yam", "pumpkin", "sweet potato", "土豆", "红薯", "紫薯", "山药", "南瓜")) {
+            return "potato";
+        }
+        if (containsAny(name, "corn", "玉米")) {
+            return "corn";
+        }
+
+        if ("low".equalsIgnoreCase(nullToDefault(food.getGiLevel(), "medium")) && fiberValue(food) >= 5) {
+            return "whole_grain";
+        }
+        if (safe(food.getCalories()) >= 160) {
+            return "dense_staple";
+        }
+        return "staple";
+    }
+
+    public static String vegGroup(Food food) {
+        if (getVeggieKind(food) == VeggieKind.STARCHY) {
+            return "starchy";
+        }
+
+        String name = safeName(food).toLowerCase(Locale.ROOT);
+        if (containsAny(name, "mushroom", "fungi", "蘑菇", "香菇", "木耳")) {
+            return "fungi";
+        }
+        if (containsAny(name, "tomato", "cucumber", "番茄", "西红柿", "黄瓜")) {
+            return "watery";
+        }
+        if (fiberValue(food) >= 2.0) {
+            return "leafy";
+        }
+        return "watery";
     }
 
     public static double safe(Double value) {
         return value == null ? 0.0 : value;
     }
 
-    public static double decimalValue(java.math.BigDecimal value) {
+    public static double decimalValue(BigDecimal value) {
         return value == null ? 0.0 : value.doubleValue();
     }
 
     public static String nullToDefault(String value, String defaultValue) {
         return value == null ? defaultValue : value;
+    }
+
+    private static String normalizeRawCategory(String rawCategory) {
+        if (rawCategory == null) {
+            return "";
+        }
+        String category = rawCategory.trim().toLowerCase(Locale.ROOT);
+        return switch (category) {
+            case "staple", "carb", "grain", "cereal" -> "staple";
+            case "protein", "meat", "egg", "seafood", "bean" -> "protein";
+            case "dairy", "milk", "yogurt" -> "dairy";
+            case "vegetable", "veg", "veggie" -> "vegetable";
+            case "fruit" -> "fruit";
+            case "nut", "nuts" -> "nut";
+            default -> category;
+        };
+    }
+
+    private static boolean containsAny(String value, String... candidates) {
+        for (String candidate : candidates) {
+            if (candidate != null && !candidate.isBlank() && value.contains(candidate.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 }

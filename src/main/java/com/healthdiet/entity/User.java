@@ -25,19 +25,22 @@ public class User {
     private Integer age;
 
     @NotNull(message = "性别不能为空")
-    @Min(value = 0, message = "性别只能是 0(女) 或 1(男)") // 假设你的定义
-    @Max(value = 1, message = "性别只能是 0(女) 或 1(男)")
+    @Min(value = 0, message = "性别只能是0(女)或1(男)")
+    @Max(value = 1, message = "性别只能是0(女)或1(男)")
     private Integer gender;
 
-    // 重点：限制 target 只能是 -1, 0, 1, 2, 3, 4
-    @Min(value = -1, message = "目标只能是 -1(减脂), 0(维持), 1(增肌), 2(糖尿病控糖), 3(高血压低盐), 4(高血脂低脂)")
-    @Max(value = 4, message = "目标只能是 -1(减脂), 0(维持), 1(增肌), 2(糖尿病控糖), 3(高血压低盐), 4(高血脂低脂)")
+    @Min(value = -1, message = "目标只能是-1到4之间的预设值")
+    @Max(value = 4, message = "目标只能是-1到4之间的预设值")
     private Integer target;
 
-    @Min(value = 0, message = "角色只能是 0(普通) 或 1(管理员)")
-    @Max(value = 1, message = "角色只能是 0(普通) 或 1(管理员)")
+    @Min(value = 1, message = "活动档位只能是1到4")
+    @Max(value = 4, message = "活动档位只能是1到4")
+    private Integer activityLevel;
+
+    @Min(value = 0, message = "角色只能是0(普通用户)或1(管理员)")
+    @Max(value = 1, message = "角色只能是0(普通用户)或1(管理员)")
     private Integer role;
 
-    private String nickname; // 昵称
-    private String avatar;   // 头像 (存的是 /images/xxx.jpg 这样的路径)
+    private String nickname;
+    private String avatar;
 }
